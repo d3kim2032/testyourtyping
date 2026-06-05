@@ -97,7 +97,7 @@
         .letter {
             position: relative;
             display: inline-block;
-            width: 14.4px; /* Perfectly aligns caret tracking */
+            width: 14.4px; 
             text-align: center;
         }
 
@@ -116,7 +116,8 @@
             width: 2px;
             height: 28px;
             background-color: var(--caret-color);
-            transition: left 0.05s linear, top 0.1s ease;
+            /* Removed linear horizontal transition to eliminate lag/snapping loops */
+            transition: top 0.15s ease; 
             animation: blink 1s infinite;
             z-index: 10;
         }
@@ -240,18 +241,14 @@
 
     function setMode(mode) {
         currentMode = mode;
-        
-        // Update mode button active classes
         document.getElementById('mode-time').classList.toggle('active', mode === 'time');
         document.getElementById('mode-words').classList.toggle('active', mode === 'words');
         
-        // Render sub-options (numbers)
         const optionsContainer = document.getElementById('mode-options');
         optionsContainer.innerHTML = '';
         
         optionsTemplates[mode].forEach((val, idx) => {
             const btn = document.createElement('span');
-            // Default to the middle selection (30 seconds or 25 words)
             btn.className = `config-btn ${idx === 1 ? 'active' : ''}`;
             btn.innerText = val;
             btn.onclick = () => {
@@ -268,12 +265,10 @@
     }
 
     function generateWords() {
-        // Clear out old words without breaking the layout
         const wordElems = wordsText.querySelectorAll('.word');
         wordElems.forEach(e => e.remove());
 
         words = [];
-        // If word mode, use the modeValue (10, 25, 50). If time mode, generate plenty of words.
         const count = currentMode === 'words' ? modeValue : 100;
         
         for (let i = 0; i < count; i++) {
@@ -290,7 +285,7 @@
 
         currentWordIndex = 0;
         currentLetterIndex = 0;
-        setTimeout(updateCaret, 10);
+        updateCaret();
     }
 
     function focusInput() {
@@ -311,14 +306,15 @@
             left = currentLetter.offsetLeft;
             top = currentLetter.offsetTop;
         } else {
+            // Put caret exactly at the end of the current word text string
             left = currentWordElem.offsetLeft + currentWordElem.offsetWidth;
             top = currentWordElem.offsetTop;
         }
 
+        // Apply coordinates immediately without passing layout queues
         caret.style.left = `${left}px`;
         caret.style.top = `${top + 6}px`;
 
-        // Handle auto-scrolling row transitions
         if (currentWordElem.offsetTop > 40) {
             wordsText.style.transform = `translateY(-${currentWordElem.offsetTop - 5}px)`;
         } else {
@@ -341,27 +337,27 @@
 
         totalTypedLetters++;
 
-        // Spacebar tracking
         if (typedVal.endsWith(' ')) {
             if (typedVal.length > 1) {
-                // If they skip letters, mark them wrong
                 for (let i = currentLetterIndex; i < letterElems.length; i++) {
                     letterElems[i].classList.add('incorrect');
                 }
                 
+                // Advance the word index BEFORE updating input value to lock caret tracking positions forward
                 currentWordIndex++;
                 currentLetterIndex = 0;
                 hiddenInput.value = '';
 
-                // END CONDITION FOR WORD MODE: Checked when completing the final word
                 if (currentMode === 'words' && currentWordIndex >= words.length) {
                     endTest();
                     return;
                 }
+                
+                // Immediately calculate new offsets without giving code a chance to render old states
+                updateCaret();
             } else {
                 hiddenInput.value = ''; 
             }
-            updateCaret();
             caret.style.animation = 'blink 1s infinite';
             return;
         }
@@ -380,7 +376,6 @@
             }
         }
 
-        // Handle typing too many letters in a word
         if (typedVal.length > currentWordStr.length) {
             let extraSpan = currentWordElem.querySelector('.extra');
             if (!extraSpan) {
@@ -395,9 +390,8 @@
             if (extra) extra.remove();
         }
 
-        // Live check for finishing word mode on the very last letter (without requiring a final space)
         if (currentMode === 'words' && currentWordIndex === words.length - 1 && typedVal === currentWordStr) {
-            currentWordIndex++; // complete the last word
+            currentWordIndex++; 
             endTest();
             return;
         }
@@ -425,7 +419,6 @@
                 timerDisplay.innerText = timeLeft;
                 if (timeLeft <= 0) endTest();
             } else {
-                // In word mode, count UP to track how long it took you
                 timerDisplay.innerText = Math.floor(timeElapsed);
             }
 
@@ -437,15 +430,22 @@
         let correctLetters = 0;
         const wordElems = wordsText.querySelectorAll('.word');
         
-        for (let i = 0; i <= currentWordIndex; i++) {
+        for (let i = 0; i < currentWordIndex; i++) {
             if (!wordElems[i]) break;
             const letters = wordElems[i].querySelectorAll('.letter');
             letters.forEach(l => {
                 if (l.classList.contains('correct') && !l.classList.contains('extra')) correctLetters++;
             });
         }
+        
+        // Include correct characters of the current actively typed word
+        if (wordElems[currentWordIndex]) {
+            const currentLetters = wordElems[currentWordIndex].querySelectorAll('.letter');
+            currentLetters.forEach(l => {
+                if (l.classList.contains('correct') && !l.classList.contains('extra')) correctLetters++;
+            });
+        }
 
-        // Keep fallback safety to prevent division by zero at the first keystroke
         if (timeElapsed < 0.1) timeElapsed = 0.1;
 
         const calculatedWpm = Math.round((correctLetters / 5) / (timeElapsed / 60));
@@ -502,7 +502,6 @@
         }
     });
 
-    // Run layout initializer on start
     setMode('time');
 </script>
 </body>
