@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimalist Typing Test</title>
+    <style>
+        :root {
+            --bg-color: #323437;
+            --main-color: #e2b714;
+            --caret-color: #e2b714;
+            --sub-color: #646669;
+            --text-color: #d1d0c5;
+            --error-color: #ca4754;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            max-width: 850px;
+            width: 100%;
+            padding: 20px;
+        }
+
+        /* Config / Menu Bar */
+        .config-bar {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            color: var(--sub-color);
+        }
+
+        .config-group {
+            display: flex;
+            gap: 10px;
+            background: #2c2e31;
+            padding: 5px 15px;
+            border-radius: 8px;
+        }
+
+        .config-btn {
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .config-btn:hover, .config-btn.active {
+            color: var(--main-color);
+        }
+
+        /* Stats Display */
+        .stats-bar {
+            display: flex;
+            gap: 30px;
+            font-size: 24px;
+            color: var(--main-color);
+            margin-bottom: 10px;
+            height: 35px;
+        }
+
+        .stat-val span {
+            color: var(--sub-color);
+            font-size: 14px;
+        }
+
+        /* Words Display Box */
+        .words-container {
+            position: relative;
+            font-size: 24px;
+            line-height: 35px;
+            height: 105px; /* Exactly 3 lines */
+            overflow: hidden;
+            word-break: break-word;
+            color: var(--sub-color);
+            user-select: none;
+        }
+
+        .word {
+            display: inline-block;
+            margin-right: 10px;
+            position: relative;
+        }
+
+        .letter {
+            position: relative;
+        }
+
+        .letter.correct {
+            color: var(--text-color);
+        }
+
+        .letter.incorrect {
+            color: var(--error-color);
+            border-bottom: 2px solid var(--error-color);
+        }
+
+        /* Caret/Cursor */
+        #caret {
+            position: absolute;
+            width: 2px;
+            height: 24px;
+            background-color: var(--caret-color);
+            top: 5px;
+            left: 0;
+            transition: all 0.1s ease;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Hidden input to catch typing on mobile/desktop */
+        #hidden-input {
+            position: absolute;
+            opacity: 0;
+            z-index: -1;
+        }
+
+        /* Results Screen */
+        .results {
+            display: none;
+            text-align: center;
+        }
+
+        .results h1 {
+            color: var(--main-color);
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .restart-btn {
+            margin-top: 25px;
+            background: none;
+            border: 2px solid var(--sub-color);
+            color: var(--sub-color);
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .restart-btn:hover {
+            color: var(--bg-color);
+            background-color: var(--text-color);
+            border-color: var(--text-color);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="game-box">
+    <div class="config-bar" id="config-bar">
+        <div class="config-group">
+            <span class="config-btn active" onclick="setMode('time')">time</span>
+            <span class="config-btn" onclick="setMode('words')">words</span>
+        </div>
+        <div class="config-group" id="mode-options">
+            </div>
+    </div>
+
+    <div class="stats-bar">
+        <div id="timer-display">30</div>
+        <div id="live-wpm" style="display: none;">0 <span>wpm</span></div>
+    </div>
+
+    <div class="words-container" id="words-wrapper" onclick="focusInput()">
+        <div id="caret"></div>
+        <div id="words-text"></div>
+    </div>
+</div>
+
+<div class="results" id="results-box">
+    <div style="display: flex; justify-content: center; gap: 50px;">
+        <div>
+            <span>wpm</span>
+            <h1 id="final-wpm">0</h1>
+        </div>
+        <div>
+            <span>accuracy</span>
+            <h1 id="final-acc">0%</h1>
+        </div>
+    </div>
+    <button class="restart-btn" onclick="resetTest()">Try Again (Esc)</button>
+</div>
+
+<input type="text" id="hidden-input" autocomplete="off" autocapitalize="off" spellcheck="false">
+
+<script>
+    // School appropriate clean word bank
+    const wordBank = [
+        "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", 
+        "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", 
+        "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", 
+        "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", 
+        "no", "just", "him", "know", "take", "people", "into", "year", "your", "good", "some", "could", 
+        "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", 
+        "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", 
+        "new", "want", "because", "any", "these", "give", "day", "most", "us", "school", "friend", 
+        "family", "study", "learn", "science", "history", "math", "book", "read", "write", "computer", 
+        "planet", "space", "nature", "music", "sport", "game", "water", "earth", "future", "world", "67" "41" "Shane"
+    ];
+
+    let currentMode = 'time'; // 'time' or 'words'
+    let modeValue = 30; // 15, 30, 60 or 10, 25, 50
+    let words = [];
+    let currentWordIndex = 0;
+    let currentLetterIndex = 0;
+    let startTime = null;
+    let timerInterval = null;
+    let isTestRunning = false;
+    let totalCorrectLetters = 0;
+    let totalTypedLetters = 0;
+
+    const hiddenInput = document.getElementById('hidden-input');
+    const wordsText = document.getElementById('words-text');
+    const caret = document.getElementById('caret');
+    const timerDisplay = document.getElementById('timer-display');
+    const liveWpm = document.getElementById('live-wpm');
+
+    // Initialize Menu Options
+    const optionsTemplates = {
+        time: [15, 30, 60],
+        words: [10, 25, 50]
+    };
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.config-bar .config-group:first-child .config-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.innerText === mode);
+        });
+        
+        // Render sub-options
+        const optionsContainer = document.getElementById('mode-options');
+        optionsContainer.innerHTML = '';
+        optionsTemplates[mode].forEach((val, idx) => {
+            const btn = document.createElement('span');
+            btn.className = `config-btn ${idx === 1 ? 'active' : ''}`;
+            btn.innerText = val;
+            btn.onclick = () => {
+                document.querySelectorAll('#mode-options .config-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                modeValue = val;
+                resetTest();
+            };
+            optionsContainer.appendChild(btn);
+        });
+
+        modeValue = optionsTemplates[mode][1]; // Default to middle option
+        resetTest();
+    }
+
+    // Generate random phrases using word bank
+    function generateWords() {
+        words = [];
+        // If word mode, generate exactly that many. If time mode, generate a large pool (e.g. 100)
+        const count = currentMode === 'words' ? modeValue : 100;
+        
+        // Shuffle/pick random words ensuring variation every time
+        for (let i = 0; i < count; i++) {
+            const randomWord = wordBank[Math.floor(Math.random() * wordBank.length)];
+            words.push(randomWord);
+        }
+
+        // Render to DOM
+        wordsText.innerHTML = words.map(word => {
+            const letterSpan = word.split('').map(l => `<span class="letter">${l}</span>`).join('');
+            return `<div class="word">${letterSpan}</div>`;
+        }).join(' ');
+
+        currentWordIndex = 0;
+        currentLetterIndex = 0;
+        updateCaret();
+    }
+
+    function focusInput() {
+        hiddenInput.focus();
+    }
+
+    // Dynamic caret tracking
+    function updateCaret() {
+        const wordElems = wordsText.children;
+        if (wordElems.length === 0 || currentWordIndex >= wordElems.length) return;
+
+        const currentWordElem = wordElems[currentWordIndex];
+        const letterElems = currentWordElem.children;
+
+        let left, top;
+        if (currentLetterIndex < letterElems.length) {
+            const currentLetter = letterElems[currentLetterIndex];
+            left = currentLetter.offsetLeft;
+            top = currentLetter.offsetTop;
+        } else {
+            // Caret at the end of the word (on the space)
+            left = currentWordElem.offsetLeft + currentWordElem.offsetWidth;
+            top = currentWordElem.offsetTop;
+        }
+
+        caret.style.left = `${left}px`;
+        caret.style.top = `${top + 2}px`;
+
+        // Handle auto-scrolling line container alignment (MonkeyType style)
+        if (currentWordElem.offsetTop > 40) {
+            wordsText.style.transform = `translateY(-${currentWordElem.offsetTop - 5}px)`;
+        } else {
+            wordsText.style.transform = `translateY(0px)`;
+        }
+    }
+
+    // Input monitoring logic
+    hiddenInput.addEventListener('input', (e) => {
+        if (!isTestRunning && hiddenInput.value.length > 0) {
+            startTest();
+        }
+
+        const typedVal = hiddenInput.value;
+        const wordElems = wordsText.children;
+        const currentWordElem = wordElems[currentWordIndex];
+        const letterElems = currentWordElem.children;
+        const currentWordStr = words[currentWordIndex];
+
+        totalTypedLetters++;
+
+        // Spacebar pressed -> Move to next word
+        if (typedVal.endsWith(' ')) {
+            // Check if anything was actually typed in current word block
+            if (typedVal.length > 1) {
+                // Mark remaining untyped letters in the word as incorrect
+                for (let i = currentLetterIndex; i < letterElems.length; i++) {
+                    letterElems[i].classList.add('incorrect');
+                }
+                currentWordIndex++;
+                currentLetterIndex = 0;
+                hiddenInput.value = '';
+
+                // End condition for Word Count Mode
+                if (currentMode === 'words' && currentWordIndex >= words.length) {
+                    endTest();
+                    return;
+                }
+            } else {
+                hiddenInput.value = ''; // Disallow consecutive spaces
+            }
+            updateCaret();
+            return;
+        }
+
+        // Logic for characters matching
+        currentLetterIndex = typedVal.length;
+        
+        // Handle Backspace handling matching UI states
+        for (let i = 0; i < letterElems.length; i++) {
+            if (i < typedVal.length) {
+                if (typedVal[i] === currentWordStr[i]) {
+                    letterElems[i].className = 'letter correct';
+                } else {
+                    letterElems[i].className = 'letter incorrect';
+                }
+            } else {
+                letterElems[i].className = 'letter';
+            }
+        }
+
+        // Handle extra characters typed past word length limits
+        if (typedVal.length > currentWordStr.length) {
+            if (!currentWordElem.querySelector('.extra')) {
+                const extraSpan = document.createElement('span');
+                extraSpan.className = 'letter incorrect extra';
+                extraSpan.innerText = typedVal.substring(currentWordStr.length);
+                currentWordElem.appendChild(extraSpan);
+            } else {
+                currentWordElem.querySelector('.extra').innerText = typedVal.substring(currentWordStr.length);
+            }
+        } else {
+            const extra = currentWordElem.querySelector('.extra');
+            if (extra) extra.remove();
+        }
+
+        updateCaret();
+    });
+
+    function startTest() {
+        isTestRunning = true;
+        startTime = Date.now();
+        liveWpm.style.display = 'block';
+        document.getElementById('config-bar').style.visibility = 'hidden';
+
+        timerInterval = setInterval(() => {
+            const timeElapsed = (Date.now() - startTime) / 1000;
+            
+            if (currentMode === 'time') {
+                const timeLeft = Math.max(0, Math.ceil(modeValue - timeElapsed));
+                timerDisplay.innerText = timeLeft;
+                if (timeLeft <= 0) endTest();
+            } else {
+                timerDisplay.innerText = Math.floor(timeElapsed);
+            }
+
+            // Update live WPM calculations
+            calculateStats(timeElapsed);
+        }, 250);
+    }
+
+    function calculateStats(timeElapsed) {
+        let correctLetters = 0;
+        let totalLettersArr = [];
+
+        // Count real-time typed metrics
+        const wordElems = wordsText.children;
+        for (let i = 0; i <= currentWordIndex; i++) {
+            if (!wordElems[i]) break;
+            const letters = wordElems[i].querySelectorAll('.letter');
+            letters.forEach(l => {
+                if (l.classList.contains('correct')) correctLetters++;
+            });
+        }
+
+        // Math Equation standard: 1 word = 5 characters
+        const calculatedWpm = Math.round((correctLetters / 5) / (timeElapsed / 60));
+        liveWpm.innerHTML = `${isNaN(calculatedWpm) || !isFinite(calculatedWpm) ? 0 : calculatedWpm} <span>wpm</span>`;
+        
+        return {
+            wpm: calculatedWpm,
+            correct: correctLetters
+        };
+    }
+
+    function endTest() {
+        clearInterval(timerInterval);
+        isTestRunning = false;
+        
+        const timeElapsed = currentMode === 'time' ? modeValue : (Date.now() - startTime) / 1000;
+        const finalStats = calculateStats(timeElapsed);
+
+        // Accuracy Calculation
+        const allCorrect = finalStats.correct;
+        const totalInputCount = totalTypedLetters;
+        const accuracy = totalInputCount > 0 ? Math.round((allCorrect / totalInputCount) * 100) : 0;
+
+        // Toggle UI views
+        document.getElementById('game-box').style.display = 'none';
+        document.getElementById('results-box').style.display = 'block';
+        document.getElementById('final-wpm').innerText = finalStats.wpm;
+        document.getElementById('final-acc').innerText = `${accuracy}%`;
+    }
+
+    function resetTest() {
+        clearInterval(timerInterval);
+        isTestRunning = false;
+        startTime = null;
+        totalTypedLetters = 0;
+        hiddenInput.value = '';
+        
+        document.getElementById('config-bar').style.visibility = 'visible';
+        document.getElementById('game-box').style.display = 'block';
+        document.getElementById('results-box').style.display = 'none';
+        liveWpm.style.display = 'none';
+        
+        timerDisplay.innerText = currentMode === 'time' ? modeValue : 0;
+        wordsText.style.transform = `translateY(0px)`;
+        
+        generateWords();
+        focusInput();
+    }
+
+    // Keyboard Hotkeys listener
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            resetTest();
+        } else {
+            // Auto-focus back to running system if user clicks away
+            if (document.getElementById('game-box').style.display !== 'none') {
+                focusInput();
+            }
+        }
+    });
+
+    // Run setup on execution
+    setMode('time');
+</script>
+</body>
+</html>
