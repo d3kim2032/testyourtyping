@@ -54,6 +54,7 @@
         .config-btn {
             cursor: pointer;
             transition: color 0.2s;
+            user-select: none;
         }
 
         .config-btn:hover, .config-btn.active {
@@ -70,17 +71,12 @@
             height: 35px;
         }
 
-        .stat-val span {
-            color: var(--sub-color);
-            font-size: 14px;
-        }
-
         /* Words Display Box */
         .words-container {
             position: relative;
             font-size: 24px;
-            line-height: 35px;
-            height: 105px; /* Exactly 3 lines */
+            line-height: 40px;
+            height: 120px; /* Exactly 3 lines */
             overflow: hidden;
             word-break: break-word;
             color: var(--sub-color);
@@ -93,7 +89,7 @@
         }
 
         .word {
-            display: inline-block;
+            display: inline-flex;
             margin-right: 14px;
             position: relative;
         }
@@ -101,6 +97,8 @@
         .letter {
             position: relative;
             display: inline-block;
+            width: 14.4px; /* Perfectly aligns caret tracking */
+            text-align: center;
         }
 
         .letter.correct {
@@ -116,9 +114,9 @@
         #caret {
             position: absolute;
             width: 2px;
-            height: 24px;
+            height: 28px;
             background-color: var(--caret-color);
-            transition: left 0.07s linear, top 0.1s ease;
+            transition: left 0.05s linear, top 0.1s ease;
             animation: blink 1s infinite;
             z-index: 10;
         }
@@ -128,7 +126,6 @@
             50% { opacity: 0; }
         }
 
-        /* Hidden input to catch typing on mobile/desktop */
         #hidden-input {
             position: absolute;
             opacity: 0;
@@ -172,11 +169,10 @@
 <div class="container" id="game-box">
     <div class="config-bar" id="config-bar">
         <div class="config-group">
-            <span class="config-btn active" onclick="setMode('time')">time</span>
-            <span class="config-btn" onclick="setMode('words')">words</span>
+            <span class="config-btn active" id="mode-time" onclick="setMode('time')">time</span>
+            <span class="config-btn" id="mode-words" onclick="setMode('words')">words</span>
         </div>
-        <div class="config-group" id="mode-options">
-            </div>
+        <div class="config-group" id="mode-options"></div>
     </div>
 
     <div class="stats-bar">
@@ -187,7 +183,7 @@
     <div class="words-container" onclick="focusInput()">
         <div class="words-text-wrapper" id="words-text">
             <div id="caret"></div>
-            </div>
+        </div>
     </div>
 </div>
 
@@ -218,7 +214,7 @@
         "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", 
         "new", "want", "because", "any", "these", "give", "day", "most", "us", "school", "friend", 
         "family", "study", "learn", "science", "history", "math", "book", "read", "write", "computer", 
-        "planet", "space", "nature", "music", "sport", "game", "water", "earth", "future", "world", "67", "41", "Shane", "design", "chinese"
+        "planet", "space", "nature", "music", "sport", "game", "water", "earth", "future", "world", "67", '41", "Shane", "Shaney Boy"
     ];
 
     let currentMode = 'time'; 
@@ -229,7 +225,6 @@
     let startTime = null;
     let timerInterval = null;
     let isTestRunning = false;
-    let totalCorrectLetters = 0;
     let totalTypedLetters = 0;
 
     const hiddenInput = document.getElementById('hidden-input');
@@ -245,14 +240,18 @@
 
     function setMode(mode) {
         currentMode = mode;
-        document.querySelectorAll('.config-bar .config-group:first-child .config-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.innerText === mode);
-        });
         
+        // Update mode button active classes
+        document.getElementById('mode-time').classList.toggle('active', mode === 'time');
+        document.getElementById('mode-words').classList.toggle('active', mode === 'words');
+        
+        // Render sub-options (numbers)
         const optionsContainer = document.getElementById('mode-options');
         optionsContainer.innerHTML = '';
+        
         optionsTemplates[mode].forEach((val, idx) => {
             const btn = document.createElement('span');
+            // Default to the middle selection (30 seconds or 25 words)
             btn.className = `config-btn ${idx === 1 ? 'active' : ''}`;
             btn.innerText = val;
             btn.onclick = () => {
@@ -269,11 +268,12 @@
     }
 
     function generateWords() {
-        // Clear previous words except caret
+        // Clear out old words without breaking the layout
         const wordElems = wordsText.querySelectorAll('.word');
         wordElems.forEach(e => e.remove());
 
         words = [];
+        // If word mode, use the modeValue (10, 25, 50). If time mode, generate plenty of words.
         const count = currentMode === 'words' ? modeValue : 100;
         
         for (let i = 0; i < count; i++) {
@@ -290,7 +290,6 @@
 
         currentWordIndex = 0;
         currentLetterIndex = 0;
-        // Small delay to let browser calculate layouts before updating caret position
         setTimeout(updateCaret, 10);
     }
 
@@ -307,21 +306,19 @@
 
         let left, top;
         
-        // Dynamic tracing logic
         if (currentLetterIndex < letterElems.length) {
             const currentLetter = letterElems[currentLetterIndex];
             left = currentLetter.offsetLeft;
             top = currentLetter.offsetTop;
         } else {
-            // Caret goes to the end of the current word
             left = currentWordElem.offsetLeft + currentWordElem.offsetWidth;
             top = currentWordElem.offsetTop;
         }
 
         caret.style.left = `${left}px`;
-        caret.style.top = `${top + 5}px`;
+        caret.style.top = `${top + 6}px`;
 
-        // Screen scrolling transitions
+        // Handle auto-scrolling row transitions
         if (currentWordElem.offsetTop > 40) {
             wordsText.style.transform = `translateY(-${currentWordElem.offsetTop - 5}px)`;
         } else {
@@ -334,7 +331,6 @@
             startTest();
         }
 
-        // Pause blinking when typing
         caret.style.animation = 'none';
 
         const typedVal = hiddenInput.value;
@@ -345,15 +341,19 @@
 
         totalTypedLetters++;
 
+        // Spacebar tracking
         if (typedVal.endsWith(' ')) {
             if (typedVal.length > 1) {
+                // If they skip letters, mark them wrong
                 for (let i = currentLetterIndex; i < letterElems.length; i++) {
                     letterElems[i].classList.add('incorrect');
                 }
+                
                 currentWordIndex++;
                 currentLetterIndex = 0;
                 hiddenInput.value = '';
 
+                // END CONDITION FOR WORD MODE: Checked when completing the final word
                 if (currentMode === 'words' && currentWordIndex >= words.length) {
                     endTest();
                     return;
@@ -380,7 +380,7 @@
             }
         }
 
-        // Handle extra overflow characters
+        // Handle typing too many letters in a word
         if (typedVal.length > currentWordStr.length) {
             let extraSpan = currentWordElem.querySelector('.extra');
             if (!extraSpan) {
@@ -389,20 +389,26 @@
                 currentWordElem.appendChild(extraSpan);
             }
             extraSpan.innerText = typedVal.substring(currentWordStr.length);
-            currentLetterIndex = currentWordStr.length; // Lock index position for calculation
+            currentLetterIndex = currentWordStr.length + 1; 
         } else {
             const extra = currentWordElem.querySelector('.extra');
             if (extra) extra.remove();
         }
 
+        // Live check for finishing word mode on the very last letter (without requiring a final space)
+        if (currentMode === 'words' && currentWordIndex === words.length - 1 && typedVal === currentWordStr) {
+            currentWordIndex++; // complete the last word
+            endTest();
+            return;
+        }
+
         updateCaret();
         
-        // Restore blinking animation after a brief delay
         setTimeout(() => {
             if (hiddenInput.value === typedVal) {
                 caret.style.animation = 'blink 1s infinite';
             }
-        }, 500);
+        }, 400);
     });
 
     function startTest() {
@@ -419,6 +425,7 @@
                 timerDisplay.innerText = timeLeft;
                 if (timeLeft <= 0) endTest();
             } else {
+                // In word mode, count UP to track how long it took you
                 timerDisplay.innerText = Math.floor(timeElapsed);
             }
 
@@ -438,6 +445,9 @@
             });
         }
 
+        // Keep fallback safety to prevent division by zero at the first keystroke
+        if (timeElapsed < 0.1) timeElapsed = 0.1;
+
         const calculatedWpm = Math.round((correctLetters / 5) / (timeElapsed / 60));
         liveWpm.innerHTML = `${isNaN(calculatedWpm) || !isFinite(calculatedWpm) ? 0 : calculatedWpm} <span>wpm</span>`;
         
@@ -451,7 +461,7 @@
         clearInterval(timerInterval);
         isTestRunning = false;
         
-        const timeElapsed = currentMode === 'time' ? modeValue : (Date.now() - startTime) / 1000;
+        const timeElapsed = (Date.now() - startTime) / 1000;
         const finalStats = calculateStats(timeElapsed);
 
         const allCorrect = finalStats.correct;
@@ -492,6 +502,7 @@
         }
     });
 
+    // Run layout initializer on start
     setMode('time');
 </script>
 </body>
