@@ -76,7 +76,7 @@
             position: relative;
             font-size: 24px;
             line-height: 40px;
-            height: 120px; /* Exactly 3 lines */
+            height: 120px; 
             overflow: hidden;
             word-break: break-word;
             color: var(--sub-color);
@@ -214,12 +214,13 @@
         "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", 
         "new", "want", "because", "any", "these", "give", "day", "most", "us", "school", "friend", 
         "family", "study", "learn", "science", "history", "math", "book", "read", "write", "computer", 
-        "planet", "space", "nature", "music", "sport", "game", "water", "earth", "future", "world", "67", "41", "Shane"
+        "planet", "space", "nature", "music", "sport", "game", "water", "earth", "future", "world"
     ];
 
     let currentMode = 'time'; 
     let modeValue = 30; 
     let words = [];
+    let typedHistory = []; // Tracks exact text history per word index
     let currentWordIndex = 0;
     let currentLetterIndex = 0;
     let startTime = null;
@@ -268,11 +269,13 @@
         wordElems.forEach(e => e.remove());
 
         words = [];
+        typedHistory = [];
         const count = currentMode === 'words' ? modeValue : 100;
         
         for (let i = 0; i < count; i++) {
             const randomWord = wordBank[Math.floor(Math.random() * wordBank.length)];
             words.push(randomWord);
+            typedHistory.push(""); // Setup empty blocks in array tracker
         }
 
         words.forEach(word => {
@@ -302,7 +305,6 @@
         
         if (currentLetterIndex < letterElems.length) {
             const currentLetter = letterElems[currentLetterIndex];
-            // FIX: Add the word's layout left coordinate to the letter's inner coordinate
             left = currentWordElem.offsetLeft + currentLetter.offsetLeft;
             top = currentWordElem.offsetTop;
         } else {
@@ -320,23 +322,35 @@
         }
     }
 
+    // NEW INTERCEPTOR: Listens for backspaces BEFORE text modifications happen
+    hiddenInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && hiddenInput.value === '' && currentWordIndex > 0) {
+            e.preventDefault(); // Stop default browser lock
+            
+            currentWordIndex--; // Step back a word
+            hiddenInput.value = typedHistory[currentWordIndex]; // Pull old string back out of history
+            currentLetterIndex = hiddenInput.value.length;
+            
+            renderWordVisuals(); // Instantly update text highlight styles
+            updateCaret();
+        }
+    });
+
     hiddenInput.addEventListener('input', (e) => {
         if (!isTestRunning && hiddenInput.value.length > 0) {
             startTest();
         }
 
         caret.style.animation = 'none';
-
         const typedVal = hiddenInput.value;
-        const wordElems = wordsText.querySelectorAll('.word');
-        const currentWordElem = wordElems[currentWordIndex];
-        const letterElems = currentWordElem.querySelectorAll('.letter');
-        const currentWordStr = words[currentWordIndex];
-
-        totalTypedLetters++;
 
         if (typedVal.endsWith(' ')) {
             if (typedVal.length > 1) {
+                const cleanedVal = typedVal.trim();
+                typedHistory[currentWordIndex] = cleanedVal; // Save string to index history
+
+                const wordElems = wordsText.querySelectorAll('.word');
+                const letterElems = wordElems[currentWordIndex].querySelectorAll('.letter');
                 for (let i = currentLetterIndex; i < letterElems.length; i++) {
                     letterElems[i].classList.add('incorrect');
                 }
@@ -358,8 +372,38 @@
             return;
         }
 
-        currentLetterIndex = typedVal.length;
+        typedHistory[currentWordIndex] = typedVal; // Keep history array updated live
+        renderWordVisuals();
+
+        const currentWordStr = words[currentWordIndex];
+        if (currentMode === 'words' && currentWordIndex === words.length - 1 && typedVal === currentWordStr) {
+            currentWordIndex++; 
+            endTest();
+            return;
+        }
+
+        updateCaret();
         
+        setTimeout(() => {
+            if (hiddenInput.value === typedVal) {
+                caret.style.animation = 'blink 1s infinite';
+            }
+        }, 400);
+    });
+
+    // Helper to paint styling transformations cleanly across backspace rewinds
+    function renderWordVisuals() {
+        const typedVal = hiddenInput.value;
+        const wordElems = wordsText.querySelectorAll('.word');
+        const currentWordElem = wordElems[currentWordIndex];
+        if (!currentWordElem) return;
+        
+        const letterElems = currentWordElem.querySelectorAll('.letter');
+        const currentWordStr = words[currentWordIndex];
+        
+        currentLetterIndex = typedVal.length;
+        totalTypedLetters++;
+
         for (let i = 0; i < letterElems.length; i++) {
             if (i < typedVal.length) {
                 if (typedVal[i] === currentWordStr[i]) {
@@ -385,21 +429,7 @@
             const extra = currentWordElem.querySelector('.extra');
             if (extra) extra.remove();
         }
-
-        if (currentMode === 'words' && currentWordIndex === words.length - 1 && typedVal === currentWordStr) {
-            currentWordIndex++; 
-            endTest();
-            return;
-        }
-
-        updateCaret();
-        
-        setTimeout(() => {
-            if (hiddenInput.value === typedVal) {
-                caret.style.animation = 'blink 1s infinite';
-            }
-        }, 400);
-    });
+    }
 
     function startTest() {
         isTestRunning = true;
@@ -426,17 +456,10 @@
         let correctLetters = 0;
         const wordElems = wordsText.querySelectorAll('.word');
         
-        for (let i = 0; i < currentWordIndex; i++) {
+        for (let i = 0; i < words.length; i++) {
             if (!wordElems[i]) break;
             const letters = wordElems[i].querySelectorAll('.letter');
             letters.forEach(l => {
-                if (l.classList.contains('correct') && !l.classList.contains('extra')) correctLetters++;
-            });
-        }
-        
-        if (wordElems[currentWordIndex]) {
-            const currentLetters = wordElems[currentWordIndex].querySelectorAll('.letter');
-            currentLetters.forEach(l => {
                 if (l.classList.contains('correct') && !l.classList.contains('extra')) correctLetters++;
             });
         }
