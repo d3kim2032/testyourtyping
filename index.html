@@ -87,14 +87,20 @@
             user-select: none;
         }
 
+        .words-text-wrapper {
+            position: relative;
+            transition: transform 0.2s ease;
+        }
+
         .word {
             display: inline-block;
-            margin-right: 10px;
+            margin-right: 14px;
             position: relative;
         }
 
         .letter {
             position: relative;
+            display: inline-block;
         }
 
         .letter.correct {
@@ -106,19 +112,19 @@
             border-bottom: 2px solid var(--error-color);
         }
 
-        /* Caret/Cursor */
+        /* Smooth Moving Caret/Cursor */
         #caret {
             position: absolute;
             width: 2px;
             height: 24px;
             background-color: var(--caret-color);
-            top: 5px;
-            left: 0;
-            transition: all 0.1s ease;
+            transition: left 0.07s linear, top 0.1s ease;
             animation: blink 1s infinite;
+            z-index: 10;
         }
 
         @keyframes blink {
+            0%, 100% { opacity: 1; }
             50% { opacity: 0; }
         }
 
@@ -178,9 +184,10 @@
         <div id="live-wpm" style="display: none;">0 <span>wpm</span></div>
     </div>
 
-    <div class="words-container" id="words-wrapper" onclick="focusInput()">
-        <div id="caret"></div>
-        <div id="words-text"></div>
+    <div class="words-container" onclick="focusInput()">
+        <div class="words-text-wrapper" id="words-text">
+            <div id="caret"></div>
+            </div>
     </div>
 </div>
 
@@ -201,7 +208,6 @@
 <input type="text" id="hidden-input" autocomplete="off" autocapitalize="off" spellcheck="false">
 
 <script>
-    // School appropriate clean word bank
     const wordBank = [
         "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", 
         "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", 
@@ -212,11 +218,11 @@
         "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", 
         "new", "want", "because", "any", "these", "give", "day", "most", "us", "school", "friend", 
         "family", "study", "learn", "science", "history", "math", "book", "read", "write", "computer", 
-        "planet", "space", "nature", "music", "sport", "game", "water", "earth", "future", "world", "67", "41", "Shane"
+        "planet", "space", "nature", "music", "sport", "game", "water", "earth", "future", "world", "67", "41", "Shane", "design", "chinese"
     ];
 
-    let currentMode = 'time'; // 'time' or 'words'
-    let modeValue = 30; // 15, 30, 60 or 10, 25, 50
+    let currentMode = 'time'; 
+    let modeValue = 30; 
     let words = [];
     let currentWordIndex = 0;
     let currentLetterIndex = 0;
@@ -232,7 +238,6 @@
     const timerDisplay = document.getElementById('timer-display');
     const liveWpm = document.getElementById('live-wpm');
 
-    // Initialize Menu Options
     const optionsTemplates = {
         time: [15, 30, 60],
         words: [10, 25, 50]
@@ -244,7 +249,6 @@
             btn.classList.toggle('active', btn.innerText === mode);
         });
         
-        // Render sub-options
         const optionsContainer = document.getElementById('mode-options');
         optionsContainer.innerHTML = '';
         optionsTemplates[mode].forEach((val, idx) => {
@@ -260,60 +264,64 @@
             optionsContainer.appendChild(btn);
         });
 
-        modeValue = optionsTemplates[mode][1]; // Default to middle option
+        modeValue = optionsTemplates[mode][1]; 
         resetTest();
     }
 
-    // Generate random phrases using word bank
     function generateWords() {
+        // Clear previous words except caret
+        const wordElems = wordsText.querySelectorAll('.word');
+        wordElems.forEach(e => e.remove());
+
         words = [];
-        // If word mode, generate exactly that many. If time mode, generate a large pool (e.g. 100)
         const count = currentMode === 'words' ? modeValue : 100;
         
-        // Shuffle/pick random words ensuring variation every time
         for (let i = 0; i < count; i++) {
             const randomWord = wordBank[Math.floor(Math.random() * wordBank.length)];
             words.push(randomWord);
         }
 
-        // Render to DOM
-        wordsText.innerHTML = words.map(word => {
-            const letterSpan = word.split('').map(l => `<span class="letter">${l}</span>`).join('');
-            return `<div class="word">${letterSpan}</div>`;
-        }).join(' ');
+        words.forEach(word => {
+            const wordDiv = document.createElement('div');
+            wordDiv.className = 'word';
+            wordDiv.innerHTML = word.split('').map(l => `<span class="letter">${l}</span>`).join('');
+            wordsText.appendChild(wordDiv);
+        });
 
         currentWordIndex = 0;
         currentLetterIndex = 0;
-        updateCaret();
+        // Small delay to let browser calculate layouts before updating caret position
+        setTimeout(updateCaret, 10);
     }
 
     function focusInput() {
         hiddenInput.focus();
     }
 
-    // Dynamic caret tracking
     function updateCaret() {
-        const wordElems = wordsText.children;
+        const wordElems = wordsText.querySelectorAll('.word');
         if (wordElems.length === 0 || currentWordIndex >= wordElems.length) return;
 
         const currentWordElem = wordElems[currentWordIndex];
-        const letterElems = currentWordElem.children;
+        const letterElems = currentWordElem.querySelectorAll('.letter');
 
         let left, top;
+        
+        // Dynamic tracing logic
         if (currentLetterIndex < letterElems.length) {
             const currentLetter = letterElems[currentLetterIndex];
             left = currentLetter.offsetLeft;
             top = currentLetter.offsetTop;
         } else {
-            // Caret at the end of the word (on the space)
+            // Caret goes to the end of the current word
             left = currentWordElem.offsetLeft + currentWordElem.offsetWidth;
             top = currentWordElem.offsetTop;
         }
 
         caret.style.left = `${left}px`;
-        caret.style.top = `${top + 2}px`;
+        caret.style.top = `${top + 5}px`;
 
-        // Handle auto-scrolling line container alignment (MonkeyType style)
+        // Screen scrolling transitions
         if (currentWordElem.offsetTop > 40) {
             wordsText.style.transform = `translateY(-${currentWordElem.offsetTop - 5}px)`;
         } else {
@@ -321,25 +329,24 @@
         }
     }
 
-    // Input monitoring logic
     hiddenInput.addEventListener('input', (e) => {
         if (!isTestRunning && hiddenInput.value.length > 0) {
             startTest();
         }
 
+        // Pause blinking when typing
+        caret.style.animation = 'none';
+
         const typedVal = hiddenInput.value;
-        const wordElems = wordsText.children;
+        const wordElems = wordsText.querySelectorAll('.word');
         const currentWordElem = wordElems[currentWordIndex];
-        const letterElems = currentWordElem.children;
+        const letterElems = currentWordElem.querySelectorAll('.letter');
         const currentWordStr = words[currentWordIndex];
 
         totalTypedLetters++;
 
-        // Spacebar pressed -> Move to next word
         if (typedVal.endsWith(' ')) {
-            // Check if anything was actually typed in current word block
             if (typedVal.length > 1) {
-                // Mark remaining untyped letters in the word as incorrect
                 for (let i = currentLetterIndex; i < letterElems.length; i++) {
                     letterElems[i].classList.add('incorrect');
                 }
@@ -347,22 +354,20 @@
                 currentLetterIndex = 0;
                 hiddenInput.value = '';
 
-                // End condition for Word Count Mode
                 if (currentMode === 'words' && currentWordIndex >= words.length) {
                     endTest();
                     return;
                 }
             } else {
-                hiddenInput.value = ''; // Disallow consecutive spaces
+                hiddenInput.value = ''; 
             }
             updateCaret();
+            caret.style.animation = 'blink 1s infinite';
             return;
         }
 
-        // Logic for characters matching
         currentLetterIndex = typedVal.length;
         
-        // Handle Backspace handling matching UI states
         for (let i = 0; i < letterElems.length; i++) {
             if (i < typedVal.length) {
                 if (typedVal[i] === currentWordStr[i]) {
@@ -375,22 +380,29 @@
             }
         }
 
-        // Handle extra characters typed past word length limits
+        // Handle extra overflow characters
         if (typedVal.length > currentWordStr.length) {
-            if (!currentWordElem.querySelector('.extra')) {
-                const extraSpan = document.createElement('span');
+            let extraSpan = currentWordElem.querySelector('.extra');
+            if (!extraSpan) {
+                extraSpan = document.createElement('span');
                 extraSpan.className = 'letter incorrect extra';
-                extraSpan.innerText = typedVal.substring(currentWordStr.length);
                 currentWordElem.appendChild(extraSpan);
-            } else {
-                currentWordElem.querySelector('.extra').innerText = typedVal.substring(currentWordStr.length);
             }
+            extraSpan.innerText = typedVal.substring(currentWordStr.length);
+            currentLetterIndex = currentWordStr.length; // Lock index position for calculation
         } else {
             const extra = currentWordElem.querySelector('.extra');
             if (extra) extra.remove();
         }
 
         updateCaret();
+        
+        // Restore blinking animation after a brief delay
+        setTimeout(() => {
+            if (hiddenInput.value === typedVal) {
+                caret.style.animation = 'blink 1s infinite';
+            }
+        }, 500);
     });
 
     function startTest() {
@@ -410,26 +422,22 @@
                 timerDisplay.innerText = Math.floor(timeElapsed);
             }
 
-            // Update live WPM calculations
             calculateStats(timeElapsed);
         }, 250);
     }
 
     function calculateStats(timeElapsed) {
         let correctLetters = 0;
-        let totalLettersArr = [];
-
-        // Count real-time typed metrics
-        const wordElems = wordsText.children;
+        const wordElems = wordsText.querySelectorAll('.word');
+        
         for (let i = 0; i <= currentWordIndex; i++) {
             if (!wordElems[i]) break;
             const letters = wordElems[i].querySelectorAll('.letter');
             letters.forEach(l => {
-                if (l.classList.contains('correct')) correctLetters++;
+                if (l.classList.contains('correct') && !l.classList.contains('extra')) correctLetters++;
             });
         }
 
-        // Math Equation standard: 1 word = 5 characters
         const calculatedWpm = Math.round((correctLetters / 5) / (timeElapsed / 60));
         liveWpm.innerHTML = `${isNaN(calculatedWpm) || !isFinite(calculatedWpm) ? 0 : calculatedWpm} <span>wpm</span>`;
         
@@ -446,12 +454,9 @@
         const timeElapsed = currentMode === 'time' ? modeValue : (Date.now() - startTime) / 1000;
         const finalStats = calculateStats(timeElapsed);
 
-        // Accuracy Calculation
         const allCorrect = finalStats.correct;
-        const totalInputCount = totalTypedLetters;
-        const accuracy = totalInputCount > 0 ? Math.round((allCorrect / totalInputCount) * 100) : 0;
+        const accuracy = totalTypedLetters > 0 ? Math.round((allCorrect / totalTypedLetters) * 100) : 0;
 
-        // Toggle UI views
         document.getElementById('game-box').style.display = 'none';
         document.getElementById('results-box').style.display = 'block';
         document.getElementById('final-wpm').innerText = finalStats.wpm;
@@ -477,19 +482,16 @@
         focusInput();
     }
 
-    // Keyboard Hotkeys listener
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             resetTest();
         } else {
-            // Auto-focus back to running system if user clicks away
             if (document.getElementById('game-box').style.display !== 'none') {
                 focusInput();
             }
         }
     });
 
-    // Run setup on execution
     setMode('time');
 </script>
 </body>
